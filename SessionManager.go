@@ -47,8 +47,12 @@ func (manager *SessionManager) Run() {
 		return
 	}
 
-	// 为单用户模式连接矿池
-	if !manager.config.MultiUserMode {
+	// Pre-create pool connections for hashrate split accounts or single-user mode
+	if len(manager.config.HashrateSplit) > 0 {
+		for _, sa := range manager.config.HashrateSplit {
+			manager.createUpSessionManager(sa.SubAccount)
+		}
+	} else if !manager.config.MultiUserMode {
 		manager.createUpSessionManager("")
 	}
 
@@ -117,9 +121,13 @@ func (manager *SessionManager) createUpSessionManager(subAccount string) (upMana
 }
 
 func (manager *SessionManager) addDownSession(e EventAddDownSession) {
-	upManager, ok := manager.upSessionManagers[e.Session.SubAccountName()]
+	subAccount := e.Session.SubAccountName()
+	if len(manager.config.HashrateSplit) > 0 {
+		subAccount = manager.config.PickSplitAccount()
+	}
+	upManager, ok := manager.upSessionManagers[subAccount]
 	if !ok {
-		upManager = manager.createUpSessionManager(e.Session.SubAccountName())
+		upManager = manager.createUpSessionManager(subAccount)
 	}
 	upManager.SendEvent(e)
 }

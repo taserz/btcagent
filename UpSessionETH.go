@@ -60,7 +60,7 @@ func NewUpSessionETH(manager *UpSessionManager, poolIndex int, slot int) (up *Up
 	up.eventChannel = make(chan interface{}, manager.config.Advanced.MessageQueueSize.PoolSession)
 	up.submitIDs = make(map[uint16]SubmitID)
 
-	if !up.config.MultiUserMode {
+	if !up.config.MultiUserMode && len(up.config.HashrateSplit) == 0 {
 		up.subAccount = manager.config.Pools[poolIndex].SubAccount
 	}
 

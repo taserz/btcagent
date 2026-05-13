@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -42,6 +43,12 @@ func (r *PoolInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]interface{}{r.Host, r.Port, r.SubAccount})
 }
 
+// SplitAccount defines one destination account for hashrate splitting
+type SplitAccount struct {
+	SubAccount string `json:"sub_account"`
+	Percent    uint   `json:"percent"`
+}
+
 type Seconds uint32
 
 func (s Seconds) Get() time.Duration {
@@ -64,7 +71,8 @@ type Config struct {
 	DirectConnectWithProxy      bool       `json:"direct_connect_with_proxy"`
 	DirectConnectAfterProxy     bool       `json:"direct_connect_after_proxy"`
 	PoolUseTls                  bool       `json:"pool_use_tls"`
-	Pools                       []PoolInfo `json:"pools"`
+	Pools                       []PoolInfo     `json:"pools"`
+	HashrateSplit               []SplitAccount `json:"hashrate_split"`
 	HTTPDebug                   struct {
 		Enable bool   `json:"enable"`
 		Listen string `json:"listen"`
@@ -115,6 +123,25 @@ func NewConfig() (config *Config) {
 	config.Advanced.MessageQueueSize.MinerSession = DownSessionChannelCache
 
 	return
+}
+
+// PickSplitAccount returns a sub-account chosen at random weighted by Percent values
+func (conf *Config) PickSplitAccount() string {
+	total := 0
+	for _, sa := range conf.HashrateSplit {
+		total += int(sa.Percent)
+	}
+	if total <= 0 {
+		return conf.HashrateSplit[0].SubAccount
+	}
+	r := rand.Intn(total)
+	for _, sa := range conf.HashrateSplit {
+		r -= int(sa.Percent)
+		if r < 0 {
+			return sa.SubAccount
+		}
+	}
+	return conf.HashrateSplit[len(conf.HashrateSplit)-1].SubAccount
 }
 
 // LoadFromFile 从文件载入配置
@@ -173,10 +200,21 @@ func (conf *Config) Init() {
 		glog.Info("[OPTION] Connect to pool server with proxy ", conf.Proxy)
 	}
 
+	if len(conf.HashrateSplit) > 0 {
+		totalPercent := uint(0)
+		for _, sa := range conf.HashrateSplit {
+			totalPercent += sa.Percent
+			glog.Info("[OPTION] Hashrate split: sub-account ", sa.SubAccount, ", ", sa.Percent, "%")
+		}
+		if totalPercent != 100 {
+			glog.Warning("[OPTION] Hashrate split percentages sum to ", totalPercent, "%, not 100%")
+		}
+	}
+
 	for i := range conf.Pools {
 		pool := &conf.Pools[i]
-		if conf.MultiUserMode {
-			// 如果启用多用户模式，删除矿池设置中的子账户名
+		if conf.MultiUserMode || len(conf.HashrateSplit) > 0 {
+			// sub-account comes from the miner's worker name or hashrate_split, not pool config
 			pool.SubAccount = ""
 			glog.Info("add pool: ", pool.Host, ":", pool.Port, ", multi user mode")
 		} else {

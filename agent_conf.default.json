@@ -19,6 +19,7 @@
         ["us.ss.btc.com", 443, "YourSubAccountName"],
         ["us.ss.btc.com", 3333, "YourSubAccountName"]
     ],
+    "hashrate_split": [],
     "http_debug": {
         "enable": false,
         "listen": "127.0.0.1:9999"
