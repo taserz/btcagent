@@ -14,6 +14,10 @@ type SessionManager struct {
 	upSessionManagers map[string]*UpSessionManager // map[子账户名]矿池会话管理器
 	exitChannel       chan bool                    // 退出信号
 	eventChannel      chan interface{}             // 事件循环
+
+	// onSubAccountPick is called (if non-nil) each time a miner is assigned to a
+	// split sub-account. Used only in tests; nil in production.
+	onSubAccountPick func(subAccount string)
 }
 
 func NewSessionManager(config *Config) (manager *SessionManager) {
@@ -124,6 +128,9 @@ func (manager *SessionManager) addDownSession(e EventAddDownSession) {
 	subAccount := e.Session.SubAccountName()
 	if len(manager.config.HashrateSplit) > 0 {
 		subAccount = manager.config.PickSplitAccount()
+		if manager.onSubAccountPick != nil {
+			manager.onSubAccountPick(subAccount)
+		}
 	}
 	upManager, ok := manager.upSessionManagers[subAccount]
 	if !ok {
